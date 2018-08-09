@@ -18,8 +18,8 @@ message['Subject'] = Header(subject, 'utf-8')
 
 try:
     smtpObj = smtplib.SMTP(sender)
-    smtpObj.login('1126531273@qq.com', 'lbaucstdiigjjefc')
-    smtpObj.sendmail('1126531273@qq.com', receivers, message.as_string())
+    smtpObj.login('1226531274@qq.com', 'lbaucstdiigjjefc')
+    smtpObj.sendmail('1226531274@qq.com', receivers, message.as_string())
     print("邮件发送成功")
 except smtplib.SMTPException:
     print("Error: 无法发送邮件")
