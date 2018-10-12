@@ -1,0 +1,217 @@
+marshmallow使用：
+
+1，声明Schema
+class ArtistSchema(Schema):
+    name = fields.Str()
+
+class AlbumSchema(Schema):
+    title = fields.Str()
+    release_date = fields.Date()
+    artist = fields.Nested(ArtistSchema())  # 关联其他Schema
+
+2，schema的使用
+schema = AlbumSchema()
+result = schema.dump(album)  # 转成为dict，dumps则转为字符串
+# result.data; result.errors
+pprint(result.data)  # 美化输出
+
+3,类对象和Schema
+class User(object):
+    def __init__(self, name, email):
+        self.name = name
+        self.email = email
+        self.created_at = dt.datetime.now()
+
+    def __repr__(self):
+        return '<User(name={self.name!r})>'.format(self=self)
+
+class UserSchema(Schema):
+    name = fields.Str()
+    email = fields.Email()
+    created_at = fields.DateTime()
+(1)序列化：user = User(name="Monty", email="monty@python.org")
+		  schema = UserSchema()
+		  result = schema.dump(user)
+		  (选择性输出：summary_schema = UserSchema(only=('name', 'email'))
+					  summary_schema.dump(user))
+(2)反序列化:user_data = {
+   		   'created_at': '2014-08-11T05:26:03.869245',
+    	   'email': u'ken@yahoo.com',
+    	   'name': u'Ken'}
+		    schema = UserSchema()
+		    result = schema.load(user_data)
+4，post_load
+	@post_load
+    def make_user(self, data):
+        return User(**data)  #在使用schem.load(data)时自动生成User对象
+
+5，many=True
+user1 = User(name="Mick", email="mick@stones.com")
+user2 = User(name="Keith", email="keith@stones.com")
+users = [user1, user2]
+schema = UserSchema(many=True)
+
+6,ValidationError
+try:
+	...
+except ValidationError as err:
+	err.messages
+
+7,字段验证
+(1)lambda：age = fields.Number(validate=lambda n: 18 <= n <= 40)
+(2)指定方法验证：quantity = fields.Integer(validate=validate_quantity)
+(3)注释方法自动指定：
+ @validates('quantity')
+    def validate_quantity(self, value):
+        if value < 0:
+            raise ValidationError('Quantity must be greater than 0.')
+* required = True 字段不可缺失
+8，partial
+# 指定一个对象只需要验证哪几个字段而不必全部加载验证
+result = UserSchema().load({'age': 42}, partial=('name',))
+# 忽略缺失的字段
+result = UserSchema().load({'age': 42}, partial=True)
+
+8,read_only & write_only
+class UserSchema(Schema):
+    name = fields.Str()
+    # password is "write-only"
+    password = fields.Str(load_only=True)
+    # created_at is "read-only"
+    created_at = fields.DateTime(dump_only=True)
+
+9, 未知属性处理方法
+(1)class UserSchema(Schema):
+	class Meta:
+		unknown = INCLUDE
+(2)schema = UserSChema(unknown=INCLUDE)
+
+10,指定属性名
+(1)指定类对象的属性名：
+class UserSchema(Schema):
+    name = fields.String()
+    email_addr = fields.String(attribute="email")
+    date_created = fields.DateTime(attribute="created_at")
+user = User('Keith', email='keith@stones.com')
+ser = UserSchema()
+result = ser.dump(user)
+pprint(result)
+# {'name': 'Keith',
+#  'email_addr': 'keith@stones.com',
+#  'date_created': '2014-08-17T14:58:57.600623+00:00'}
+(2)指定dump/load之后输出的key：
+class UserSchema(Schema):
+    name = fields.String()
+    email = fields.Email(data_key='emailAddress')
+s = UserSchema()
+data = {
+    'name': 'Mike',
+    'email': 'foo@bar.com'
+}
+result = s.dump(data)
+#{'name': u'Mike',
+# 'emailAddress': 'foo@bar.com'}
+data = {
+    'name': 'Mike',
+    'emailAddress': 'foo@bar.com'
+}
+result = s.load(data)
+#{'name': u'Mike',
+# 'email': 'foo@bar.com'}
+
+11，指定序列化属性：
+(1) uppername = fields.Function(lambda obj: obj.name.upper())
+	class Meta:
+        fields = ("name", "email", "created_at", "uppername")
+(2) uppername = fields.Function(lambda obj: obj.name.upper())
+	class Meta:
+        # No need to include 'uppername'
+        additional = ("name", "email", "created_at")
+
+12,按照顺序输出
+uppername = fields.Function(lambda obj: obj.name.upper())
+    class Meta:
+        fields = ("name", "email", "created_at", "uppername")
+        ordered = True
+# 通过以上指定ordered，schema.dump之后返回的是一个OrderedDict
+
+13,设置默认值：
+class UserSchema(Schema):
+    id = fields.UUID(missing=uuid.uuid1)
+    birthdate = fields.DateTime(default=dt.datetime(2017, 9, 29))
+-------------------------------------------------------------------------------------------
+
+另外，对于上面的方法和属性，还有一些其他可能的取值
+
+1，class Meta:
+fields: 
+	Tuple or list of fields to include in the serialized result.
+additional: 
+	Tuple or list of fields to include in addition to the
+	explicitly declared fields. additional and fields are mutually-exclusive options.
+include: 
+	Dictionary of additional fields to include in the schema. It is
+	usually better to define fields as class variables, but you may need to use this option, e.g., if your fields are Python keywords. May be an OrderedDict.
+exclude: 
+	Tuple or list of fields to exclude in the serialized result.
+	Nested fields can be represented with dot delimiters.
+dateformat: 
+	Date format for all DateTime fields that do not have their
+	date format explicitly specified.
+render_module: 
+	Module to use for loads and dumps. Defaults to
+	json from the standard library.
+ordered: 
+	If True, order serialization output according to the
+	order in which fields were declared. Output of Schema.dump will be a collections.OrderedDict.
+index_errors: 
+	If True, errors dictionaries will include the index
+	of invalid items in a collection.
+load_only: 
+	Tuple or list of fields to exclude from serialized results.
+dump_only: 
+	Tuple or list of fields to exclude from deserialization
+unknown: 
+	Whether to exclude, include, or raise an error for unknown
+	fields in the data. Use EXCLUDE, INCLUDE or RAISE.
+
+2，属性的参数名：
+Parameters:
+only (tuple|list) 
+	– Whitelist of the declared fields to select when instantiating the Schema. If None, all fields are used. Nested fields can be represented with dot delimiters.
+exclude (tuple|list) 
+	– Blacklist of the declared fields to exclude when instantiating the Schema. If a field appears in both only and exclude, it is not used. Nested fields can be represented with dot delimiters.
+prefix (str) 
+	– Optional prefix that will be prepended to all the serialized field names.
+many (bool) 
+	– Should be set to True if obj is a collection so that the object will be serialized to a list.
+context (dict) 
+	– Optional context passed to fields.Method and fields.Function fields.
+load_only (tuple|list) 
+	– Fields to skip during serialization (write-only fields)
+dump_only (tuple|list) 
+	– Fields to skip during deserialization (read-only fields)
+partial (bool|tuple) 
+	– Whether to ignore missing fields. If its value is an iterable, only missing fields listed in that iterable will be ignored.
+unknown 
+	– Whether to exclude, include, or raise an error for unknown fields in the data. Use EXCLUDE, INCLUDE or RAISE.
+
+3,装饰器方法：
+pre_load
+pre_dump
+post_load
+post_dump
+
+4,@validates_shema
+我们可以使用验证器_模式装饰器为Schema注册模式级别的验证函数。模式级验证错误将存储在错误二进位的_schema键上:
+class NumberSchema(Schema): 
+	field_a = fields.Integer() 
+	field_b = fields.Integer() 
+	@validates_schema 
+	def validate_numbers(self, data): 
+		if data['field_b'] >= data['field_a']: 
+			raise ValidationError('field_a must be greater than field_b')
+		schema = NumberSchema() 
+		result, errors = schema.load({'field_a': 2, 'field_b': 1} 
+		# errors['_schema'] # => ["field_a must be greater than field_b"] 
+
