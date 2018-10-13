@@ -1,14 +1,22 @@
 import time
-from datetime import datetime
-
+from datetime import timedelta
+import datetime
 import pytz
 
-now = datetime.now()
+now = datetime.datetime.now()
 print("北京时间:", now)
 time_struct = time.mktime(now.timetuple())
-utc_st = datetime.utcfromtimestamp(time_struct)
+utc_st = datetime.datetime.utcfromtimestamp(time_struct)
 print("UTC时间:", utc_st)
 print('--------------------------------------------')
+# 将utctime转化为当地时间
+tzutc_8 = utc_st.replace(tzinfo=datetime.timezone.utc)
+# print(tzutc_8.tzinfo)
+print(tzutc_8)
+tz = pytz.timezone('Asia/Shanghai')
+local_dt = tzutc_8.astimezone(tz)
+print(local_dt)
+print('------------------------------------------------')
 # 第二种方法
 from pytz import timezone
 
