@@ -1,0 +1,203 @@
+Json Schema使用：
+
+eg:
+[1] json数据：
+{
+    "id": 520,
+    "name": "hello first blog",
+    "price": 25.5
+}
+[2] json schema:
+{ 
+// $schema, description, type, properties, required, minimum, exclusiveMinimum,
+// maximum, exclusiveMaximum, multipleOf, maxLength, minLength, pattern
+"$schema": "http://json-schema.org/draft-04/schema#", 
+"title": "BookInfo", 
+"description": "some information about book", 
+"type": "object",
+"properties": {
+	 "id": {
+	 	 "description": "The unique identifier for a book", 
+	 	 //type: array,boolean,integer,number,null,object,string
+	 	 "type": "integer",    
+	 	 "minimum": 1
+	 	  }, 
+	 "name": { 
+	 	"description": "Name of the book", 
+	 	"type": "string", 
+	 	"maxLength": 50,
+	 	"minLength": 1 
+	 }, 
+	 "price": { 
+	 	"type": "number", 
+	 	"minimum": 0, 
+	 	"exclusiveMinimum": true } 
+	 }, 
+	 "required": [ 
+	 	"id", 
+	 	"name", 
+	 	"price" 
+	 ] 
+}
+[2] $ref作用:
+{
+    "id": "http://my.site/myschema#",
+    "definitions": {
+        "schema1": {
+            "id": "schema1",
+            "type": "number"
+        },
+        "schema2", {
+            "type": "array",
+            "items": { "$ref": "schema1" }
+        }
+    }
+}
+
+
+jsonschema 在python中的应用实例：
+
+(1)validate:
+eg:
+from jsonschema import validate
+
+validate([2, 3, 4], {"maxItems": 2}, cls=None)
+
+# :Parameters
+# •instance        – The instance to validate
+# •schema          – The schema to validate with
+# •cls(IValidator) – The class that will be used to validate the instance.
+# $schema属性包含一个已知的meta-schema，那么将使用正确的验证器。如果没有，则默认的验证器类是：Draft4Validator
+
+(2)IValidator(所有的验证器类都应该遵从，Draft3Validator/Draft4Validator):
+- Parameter
+	--schema                 #用来去验证数据的schema体
+	--resolver				 # 通过$ref 指定其他一些schema内容
+	--format_checker         #指定FormatChecker
+	--types (depreciated)
+
+- META_SCHEMA 	  # 元约束（目前只有Draft3Validator，Draft4Validator）
+- VALIDATORS 	  # 有create，extend等一些方法（a mapping from names to callables, where
+each callable will validate the schema property with the given name.）
+- TYPE_CHECKER    # 用来检查字段属性的类型是否合理(内置)
+- schema 		  # 指定某个IValidator具体使用那个schema进行数据校验
+- DEFAULT_TYPES   # depreciated
+- classmethod check_schema(schema)  # 检查引入的schema是否
+- is_type(instance, type) #(要检查的字段，是否属于此类型)
+- is_valid(instance)
+- iter_errors(instance)
+
+eg:
+[1]
+from jsonschema import Draft3Validator
+
+schema = {"maxTtems": 2}
+Draft3Validator(schema).is_valid([2,3,4])
+>>> False
+[2]
+schema1 = {
+	"type": "array",
+	"items": {"enum": [1, 2, 3]}
+	"maxItems": 2
+}
+
+v = Draft3Validator(schema)
+for error in sorted(v.iter_error([2,3,4]), key=str):
+	print(error.message)
+[3]
+schema = {"maxItems": 2}
+Draft3Validator(schema).validate([2,3,4])
+# 如果验证成功，则返回空，否则报错ValidationError
+
+[4]
+redefine, redefine_many, remove # 重定义(single/many)/移除类型检查器
+（貌似depreciated）
+
+(3)ErrorTrees:将校验中的报错自动封装为一个集合
+>>> from jsonschema import ErrorTree, Draft3Validator
+>>> schema = {
+...     "type" : "array",
+...     "items" : {"type" : "number", "enum" : [1, 2, 3]},
+...     "minItems" : 3,
+... }
+>>> instance = ["spam", 2]
+>>> v = Draft3Validator(schema)
+>>> tree = ErrorTree(v.iter_errors(instance))
+>>> sorted(tree.errors)  # 根节点错误
+['minItems']
+>>> sorted(tree[0].errors)
+['enum', 'type']         # 子节点错误
+>>> 0 in tree
+True
+>>> 1 in tree
+False
+>>> print(tree[0].errors["type"].message)
+'spam' is not of type 'number'
+
+(4)check_schema: 一个classmethod
+用来校验传来的schema是否有效，如果有错则报错，否则返回空。
+eg:
+try:
+    x = Draft4Validator.check_schema(schema)
+except SchemaError as e:
+    print(e.message)
+# -1 is less than the minimum of 0
+
+(5)导入json文件：
+通过读取json格式的文件，将schema读取进来并进行数据校验。
+eg:
+file = open("x.json", "r")
+json_file = json.load(file)
+print(json_file)
+
+(6)校验model：
+# schemas.py
+flavor_schema = {...}
+jsonschema.Draft4Validator.check_schema(flavor_schema)
+SCHEMAS = {'flavor_schema': flavor_schema}
+
+# validates.py
+class Validator(object):
+    def __init__(self, name):
+        self.name = name
+        self.schema = schemas.SCHEMAS.get(name)
+        checker = jsonschema.FormatChecker()
+        self.validator = validators.Draft4Validator(self.schema,
+                                                format_checker=checker)
+
+    def validate(self, data):
+        try:
+            self.validator.validate(data)
+        except jsonschema.ValidationError as ex:
+            LOG.exception(ex.message)
+            # TODO(ramineni):raise valence specific exception
+            raise Exception(ex.message)
+
+(7)format_checker：
+该实例的FormatChecker.conform()方法将检查实例是否符合schema架构中存在的每个FormatChecker属性。如果没有提供，就不会对此格式进行验证。
+举例:
+[1]如上(6)
+
+[2]：
+>>>
+validate("localhost", {"format" : "hostname"})
+>>>
+validate(
+...
+"-12", {"format" : "hostname"}, format_checker=FormatChecker(),
+...)                                                                  # 文档中写道（see if instances conform to each format property present in the schema. ）
+Traceback (most recent call last):
+...
+ValidationError: "-12" is not a "hostname"
+*注：FormatChecker可以通过checkers映射识别到schema中的一些字段，并通过check方法判断是否符合格式，但是有些格式的验证需要安装一些包，详细对应如下(有些不需要安装)：
+Checker              Notes
+hostname
+ipv4
+ipv6                 OS must have socket.inet_pton function
+email
+uri                  requires rfc3987
+date-time            requires strict-rfc333(平方)
+date
+time
+regex
+color                requires webcolors
