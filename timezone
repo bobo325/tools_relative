@@ -1,0 +1,35 @@
+import time
+from datetime import timedelta
+import datetime
+import pytz
+
+now = datetime.datetime.now()
+print("北京时间:", now)
+time_struct = time.mktime(now.timetuple())
+utc_st = datetime.datetime.utcfromtimestamp(time_struct)
+print("UTC时间:", utc_st)
+print('--------------------------------------------')
+# 将utctime转化为当地时间
+tzutc_8 = utc_st.replace(tzinfo=datetime.timezone.utc)
+# print(tzutc_8.tzinfo)
+print(tzutc_8)
+tz = pytz.timezone('Asia/Shanghai')
+local_dt = tzutc_8.astimezone(tz)
+print(local_dt)
+print('------------------------------------------------')
+# 第二种方法
+from pytz import timezone
+
+central = timezone('Asia/Shanghai')
+local_d = central.localize(now)
+print(local_d)
+print(local_d.astimezone(pytz.utc))  # astimezone是表示相对一个localtime的另一个localtime的时间，但是两者对于utc来说，即将时区进行合并之后
+# 表示的都是utctime ---> 看打印结果
+print(type(local_d))
+
+# 北京时间: 2018-10-13 12:33:59.785113
+# UTC时间: 2018-10-13 04:33:59
+# --------------------------------------------
+# 2018-10-13 12:33:59.785113+08:00
+# 2018-10-13 04:33:59.785113+00:00
+# <class 'datetime.datetime'>
